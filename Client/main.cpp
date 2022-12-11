@@ -8,7 +8,7 @@ void recvFile(Socket rs, const char* path) {
 
     // Recvive file name
     auto fileName = rs.receive();
-    std::cout << "Recvive File Name: " << fileName << "\n";
+    std::cout << "Recvive File Name: \"" << fileName << "\"\n";
 
     // Recvive file size
     char rsize[sizeof(uintmax_t)] = { 0 };
@@ -32,11 +32,12 @@ void recvFile(Socket rs, const char* path) {
         rs.receive(rbuf, (int)size);
         ofs.write(rbuf, size);
         fileSize -= size;
-        Sleep(1);
+        Sleep(10);
     }
 
     ofs.close();
     std::cout << "Recvive Complete!\n\n";
+    Sleep(100);
 }
 
 int main() {

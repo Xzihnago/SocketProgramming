@@ -12,7 +12,7 @@ void sendFile(Socket ss, SOCKET sfd, const char* path) {
     auto fileSize = fs::file_size(fspath);
 
     // Send file name
-    std::cout << "Send File Name: \"" << fileName << "\"\n";
+    std::cout << "Send File Name: " << fileName << "\n";
     ss.send(sfd, fileName.string().c_str(), (int)fileName.string().length());
 
     // Send file size
@@ -36,11 +36,12 @@ void sendFile(Socket ss, SOCKET sfd, const char* path) {
         std::cout << "Send " << size << " Bytes | Reamining " << fileSize << " Bytes\n";
         ss.send(sfd, sbuf, (int)size);
         fileSize -= size;
-        Sleep(1);
+        Sleep(10);
     }
 
     ifs.close();
     std::cout << "Send Complete!\n\n";
+    Sleep(100);
 }
 
 int main() {

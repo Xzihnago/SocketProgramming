@@ -1,7 +1,6 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <vector>
 #include "../Socket.h"
 
 void sendFile(Socket ss, SOCKET sfd, const char* path) {

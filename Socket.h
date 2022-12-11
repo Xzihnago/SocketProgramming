@@ -9,7 +9,6 @@ static bool isWSAStartup = false;
 #include <fcntl.h>
 #include <sys/socket.h>
 #endif
-#include <array>
 #include <iostream>
 
 SOCKADDR_IN create_sockaddr_in(ADDRESS_FAMILY family, const char* ip, uint16_t port) {
@@ -74,7 +73,7 @@ private:
 
     SOCKET sfd;
     constexpr static int BUFFER_SIZE = 1024;
-    std::array<char, BUFFER_SIZE> buffer;
+    char buffer[BUFFER_SIZE];
 
     bool connected;
     bool listening;
@@ -83,9 +82,9 @@ public:
     Socket(int family, int type, int protocol, bool is_nonblock);
     ~Socket();
 
-    bool is_connected() const;
-    bool is_listening() const;
-    std::array<char, 1024> get_buffer() const;
+    constexpr const bool is_connected() const noexcept;
+    constexpr const bool is_listening() const noexcept;
+    constexpr const char* get_buffer() const noexcept;
 
     void bind(const int port);
     void listen(int max_connections);
@@ -95,21 +94,25 @@ public:
     void close(const SOCKET sfd);
     void close();
 
+    void send(const SOCKET sfd, const char* data, const int size);
+    void send(const char* data, const int size);
     void send(const SOCKET sfd, const char* data);
     void send(const char* data);
 
-    void receive(const SOCKET sfd, char* data, const int size);
-    void receive(char* data, const int size);
-    void receive(const SOCKET sfd);
-    void receive();
+    const char* receive(const SOCKET sfd, char* data, const int size);
+    const char* receive(char* data, const int size);
+    const char* receive(const SOCKET sfd);
+    const char* receive();
 
+    void sendto(const char* data, const int size, const SOCKADDR* addr, const int addrlen);
+    void sendto(const char* data, const int size, const char* ip, const int port);
     void sendto(const char* data, const SOCKADDR* addr, const int addrlen);
     void sendto(const char* data, const char* ip, const int port);
 
-    void receivefrom(char* data, const int size, const SOCKADDR* addr, int* addrlen);
-    void receivefrom(char* data, const int size, const char* ip, const int port);
-    void receivefrom(const SOCKADDR* addr, int* addrlen);
-    void receivefrom(const char* ip, const int port);
+    const char* receivefrom(char* data, const int size, const SOCKADDR* addr, int* addrlen);
+    const char* receivefrom(char* data, const int size, const char* ip, const int port);
+    const char* receivefrom(const SOCKADDR* addr, int* addrlen);
+    const char* receivefrom(const char* ip, const int port);
 };
 
 Socket::Socket(int family, int type, int protocol, bool is_nonblock) {
@@ -127,15 +130,15 @@ Socket::~Socket() {
     this->close();
 }
 
-bool Socket::is_connected() const {
+constexpr const bool Socket::is_connected() const noexcept {
     return this->connected;
 }
 
-bool Socket::is_listening() const {
+constexpr const bool Socket::is_listening() const noexcept {
     return this->listening;
 }
 
-std::array<char, 1024> Socket::get_buffer() const {
+constexpr const char* Socket::get_buffer() const noexcept {
     return this->buffer;
 }
 
@@ -212,8 +215,8 @@ void Socket::close() {
     this->close(this->sfd);
 }
 
-void Socket::send(const SOCKET sfd, const char* data) {
-    if (::send(sfd, data, (int)strlen(data) + 1, 0) == SOCKET_ERROR) {
+void Socket::send(const SOCKET sfd, const char* data, const int size) {
+    if (::send(sfd, data, size, 0) == SOCKET_ERROR) {
 #ifdef _WIN32
         int res = WSAGetLastError();
 #else
@@ -223,11 +226,17 @@ void Socket::send(const SOCKET sfd, const char* data) {
         abort();
     }
 }
+void Socket::send(const char* data, const int size) {
+    this->send(this->sfd, data, size);
+}
+void Socket::send(const SOCKET sfd, const char* data) {
+    this->send(sfd, data, (int)strlen(data));
+}
 void Socket::send(const char* data) {
-    this->send(this->sfd, data);
+    this->send(this->sfd, data, (int)strlen(data));
 }
 
-void Socket::receive(const SOCKET sfd, char* data, const int size) {
+const char* Socket::receive(const SOCKET sfd, char* data, const int size) {
     if (::recv(sfd, data, size, 0) == SOCKET_ERROR) {
 #ifdef _WIN32
         int res = WSAGetLastError();
@@ -237,19 +246,22 @@ void Socket::receive(const SOCKET sfd, char* data, const int size) {
         std::cout << "Receive failed (" << res << ")\n";
         abort();
     }
+    return data;
 }
-void Socket::receive(char* data, const int size) {
-    this->receive(this->sfd, data, size);
+const char* Socket::receive(char* data, const int size) {
+    return this->receive(this->sfd, data, size);
 }
-void Socket::receive(const SOCKET sfd) {
-    this->receive(sfd, this->buffer.data(), this->BUFFER_SIZE);
+const char* Socket::receive(const SOCKET sfd) {
+    memset(this->buffer, 0, BUFFER_SIZE);
+    return this->receive(sfd, this->buffer, this->BUFFER_SIZE);
 }
-void Socket::receive() {
-    this->receive(this->sfd, this->buffer.data(), this->BUFFER_SIZE);
+const char* Socket::receive() {
+    memset(this->buffer, 0, BUFFER_SIZE);
+    return this->receive(this->sfd, this->buffer, this->BUFFER_SIZE);
 }
 
-void Socket::sendto(const char* data, const SOCKADDR* addr, const int addrlen) {
-    if (::sendto(this->sfd, data, (int)strlen(data) + 1, 0, addr, addrlen) == SOCKET_ERROR) {
+void Socket::sendto(const char* data, const int size, const SOCKADDR* addr, const int addrlen) {
+    if (::sendto(this->sfd, data, size, 0, addr, addrlen) == SOCKET_ERROR) {
 #ifdef _WIN32
         int res = WSAGetLastError();
 #else
@@ -259,12 +271,18 @@ void Socket::sendto(const char* data, const SOCKADDR* addr, const int addrlen) {
         abort();
     }
 }
-void Socket::sendto(const char* data, const char* ip, const int port) {
+void Socket::sendto(const char* data, const int size, const char* ip, const int port) {
     SOCKADDR_IN addr = create_sockaddr_in(this->family, ip, port);
     this->sendto(data, (SOCKADDR*)&addr, sizeof(addr));
 }
+void Socket::sendto(const char* data, const SOCKADDR* addr, const int addrlen) {
+    this->sendto(data, (int)strlen(data), addr, addrlen);
+}
+void Socket::sendto(const char* data, const char* ip, const int port) {
+    this->sendto(data, (int)strlen(data), ip, port);
+}
 
-void Socket::receivefrom(char* data, const int size, const SOCKADDR* addr, int* addrlen) {
+const char* Socket::receivefrom(char* data, const int size, const SOCKADDR* addr, int* addrlen) {
     if (::recvfrom(this->sfd, data, size, 0, (SOCKADDR*)addr, addrlen) == SOCKET_ERROR) {
 #ifdef _WIN32
         int res = WSAGetLastError();
@@ -274,15 +292,18 @@ void Socket::receivefrom(char* data, const int size, const SOCKADDR* addr, int* 
         std::cout << "Receivefrom failed (" << res << ")\n";
         abort();
     }
+    return data;
 }
-void Socket::receivefrom(char* data, const int size, const char* ip, const int port) {
+const char* Socket::receivefrom(char* data, const int size, const char* ip, const int port) {
     SOCKADDR_IN addr = create_sockaddr_in(this->family, ip, port);
     int addrlen = sizeof(addr);
-    this->receivefrom(data, size, (SOCKADDR*)&addr, &addrlen);
+    return this->receivefrom(data, size, (SOCKADDR*)&addr, &addrlen);
 }
-void Socket::receivefrom(const SOCKADDR* addr, int* addrlen) {
-    this->receivefrom(this->buffer.data(), this->BUFFER_SIZE, addr, addrlen);
+const char* Socket::receivefrom(const SOCKADDR* addr, int* addrlen) {
+    memset(this->buffer, 0, BUFFER_SIZE);
+    return this->receivefrom(this->buffer, this->BUFFER_SIZE, addr, addrlen);
 }
-void Socket::receivefrom(const char* ip, const int port) {
-    this->receivefrom(this->buffer.data(), this->BUFFER_SIZE, ip, port);
+const char* Socket::receivefrom(const char* ip, const int port) {
+    memset(this->buffer, 0, BUFFER_SIZE);
+    return this->receivefrom(this->buffer, this->BUFFER_SIZE, ip, port);
 }
